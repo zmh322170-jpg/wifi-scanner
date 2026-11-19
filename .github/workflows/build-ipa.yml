@@ -1,0 +1,44 @@
+name: Build IPA
+
+# 推送到 main 分支自动触发。跑完会把未签名的 WiFiScanner.ipa
+# 发布到本仓库的 Releases（v1.0），可直接下载。
+# 安装到 iPhone 还需要用你自己的 Apple ID 签名（见 README）。
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild build \
+            -project WiFiScanner.xcodeproj \
+            -scheme WiFiScanner \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY=""
+
+      - name: Package IPA
+        run: |
+          mkdir -p Payload
+          cp -R "build/Build/Products/Release-iphoneos/WiFiScanner.app" Payload/
+          zip -r WiFiScanner.ipa Payload
+
+      - name: Publish release with IPA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete v1.0 --yes --cleanup-tag || true
+          gh release create v1.0 WiFiScanner.ipa \
+            --title "WiFiScanner v1.0" \
+            --notes "未签名 IPA（字面意思）"
